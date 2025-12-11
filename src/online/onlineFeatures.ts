@@ -1,9 +1,15 @@
 /**
  * Online Features Module
  * WebRTC camera streaming, spectator mode, and real-time sync
- * 
- * Similar to Dart Counter's online play functionality
+ *
+ * Performance optimizations:
+ * - Lazy stream initialization
+ * - Efficient WebRTC connection management
+ * - Memory-safe cleanup methods
  */
+
+import { generateCode } from '../constants';
+import type { DatabaseClient } from '../types';
 
 // ==================== TYPES ====================
 
@@ -13,24 +19,21 @@ export interface OnlineMatch {
   host_id: string;
   guest_id?: string;
   status: 'waiting' | 'ready' | 'in_progress' | 'completed';
-  
-  // Match settings
+
   starting_score: number;
   legs_to_win: number;
   match_type: 'first_to' | 'best_of';
-  
-  // Stream settings
+
   host_stream_enabled: boolean;
   guest_stream_enabled: boolean;
   spectators_allowed: boolean;
-  
-  // Current state
+
   current_player: 'host' | 'guest';
   host_score: number;
   guest_score: number;
   host_legs: number;
   guest_legs: number;
-  
+
   created_at: string;
 }
 
@@ -57,23 +60,13 @@ export interface ICEServer {
 
 // ==================== WEBRTC CONFIGURATION ====================
 
-/**
- * Default ICE servers for WebRTC
- * For production, you should use your own TURN servers
- */
-export const DEFAULT_ICE_SERVERS: ICEServer[] = [
+export const DEFAULT_ICE_SERVERS: readonly ICEServer[] = Object.freeze([
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
-  // Add TURN servers for production:
-  // {
-  //   urls: 'turn:your-turn-server.com:3478',
-  //   username: 'username',
-  //   credential: 'password'
-  // }
-];
+]);
 
-export const STREAM_QUALITY_PRESETS: Record<string, MediaTrackConstraints> = {
+export const STREAM_QUALITY_PRESETS: Readonly<Record<string, MediaTrackConstraints>> = Object.freeze({
   low: {
     width: { ideal: 320 },
     height: { ideal: 240 },
@@ -89,7 +82,7 @@ export const STREAM_QUALITY_PRESETS: Record<string, MediaTrackConstraints> = {
     height: { ideal: 720 },
     frameRate: { ideal: 30 }
   }
-};
+});
 
 // ==================== CAMERA STREAM MANAGER ====================
 
@@ -114,7 +107,7 @@ export class CameraStreamManager {
       this.videoElement = videoElement;
       videoElement.srcObject = this.localStream;
       videoElement.muted = true; // Mute local playback to prevent echo
-      
+
       return this.localStream;
     } catch (error) {
       console.error('Failed to access camera:', error);
@@ -123,7 +116,7 @@ export class CameraStreamManager {
   }
 
   /**
-   * Stop local stream
+   * Stop local stream and cleanup
    */
   stopLocalStream(): void {
     if (this.localStream) {
@@ -171,31 +164,28 @@ export class WebRTCPeer {
   private localStream: MediaStream | null = null;
   private remoteStream: MediaStream | null = null;
   private dataChannel: RTCDataChannel | null = null;
-  
+
   private onRemoteStreamCallback?: (stream: MediaStream) => void;
-  private onDataMessageCallback?: (message: any) => void;
+  private onDataMessageCallback?: (message: unknown) => void;
   private onConnectionStateCallback?: (state: RTCPeerConnectionState) => void;
 
-  constructor(iceServers: ICEServer[] = DEFAULT_ICE_SERVERS) {
-    this.peerConnection = new RTCPeerConnection({ iceServers });
+  constructor(iceServers: ICEServer[] = [...DEFAULT_ICE_SERVERS]) {
+    this.peerConnection = new RTCPeerConnection({
+      iceServers: iceServers as RTCIceServer[]
+    });
     this.setupEventHandlers();
   }
 
   private setupEventHandlers(): void {
     if (!this.peerConnection) return;
 
-    // Handle incoming tracks (remote video)
     this.peerConnection.ontrack = (event) => {
       this.remoteStream = event.streams[0];
-      if (this.onRemoteStreamCallback) {
-        this.onRemoteStreamCallback(this.remoteStream);
-      }
+      this.onRemoteStreamCallback?.(this.remoteStream);
     };
 
-    // Handle ICE candidates
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        // Send candidate to signaling server
         this.sendSignalingMessage({
           type: 'ice-candidate',
           candidate: event.candidate
@@ -203,14 +193,12 @@ export class WebRTCPeer {
       }
     };
 
-    // Handle connection state changes
     this.peerConnection.onconnectionstatechange = () => {
-      if (this.onConnectionStateCallback && this.peerConnection) {
-        this.onConnectionStateCallback(this.peerConnection.connectionState);
+      if (this.peerConnection) {
+        this.onConnectionStateCallback?.(this.peerConnection.connectionState);
       }
     };
 
-    // Handle data channel
     this.peerConnection.ondatachannel = (event) => {
       this.dataChannel = event.channel;
       this.setupDataChannel();
@@ -223,9 +211,7 @@ export class WebRTCPeer {
     this.dataChannel.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
-        if (this.onDataMessageCallback) {
-          this.onDataMessageCallback(message);
-        }
+        this.onDataMessageCallback?.(message);
       } catch (e) {
         console.error('Failed to parse data channel message:', e);
       }
@@ -248,7 +234,6 @@ export class WebRTCPeer {
   async createOffer(): Promise<RTCSessionDescriptionInit> {
     if (!this.peerConnection) throw new Error('Peer connection not initialized');
 
-    // Create data channel for game state sync
     this.dataChannel = this.peerConnection.createDataChannel('gameState', {
       ordered: true
     });
@@ -290,8 +275,8 @@ export class WebRTCPeer {
   /**
    * Send game data through data channel
    */
-  sendGameData(data: any): void {
-    if (this.dataChannel && this.dataChannel.readyState === 'open') {
+  sendGameData(data: unknown): void {
+    if (this.dataChannel?.readyState === 'open') {
       this.dataChannel.send(JSON.stringify(data));
     }
   }
@@ -303,7 +288,7 @@ export class WebRTCPeer {
     this.onRemoteStreamCallback = callback;
   }
 
-  onDataMessage(callback: (message: any) => void): void {
+  onDataMessage(callback: (message: unknown) => void): void {
     this.onDataMessageCallback = callback;
   }
 
@@ -312,37 +297,31 @@ export class WebRTCPeer {
   }
 
   /**
-   * Placeholder for signaling message sending
-   * Override this to send messages through your signaling server
+   * Override to send messages through signaling server
    */
-  protected sendSignalingMessage(message: any): void {
-    // Override this method to send messages to signaling server
+  protected sendSignalingMessage(message: unknown): void {
     console.log('Signaling message:', message);
   }
 
   /**
-   * Close connection
+   * Close connection and cleanup
    */
   close(): void {
-    if (this.dataChannel) {
-      this.dataChannel.close();
-      this.dataChannel = null;
-    }
-    if (this.peerConnection) {
-      this.peerConnection.close();
-      this.peerConnection = null;
-    }
+    this.dataChannel?.close();
+    this.dataChannel = null;
+    this.peerConnection?.close();
+    this.peerConnection = null;
   }
 }
 
 // ==================== ONLINE MATCH SERVICE ====================
 
 export class OnlineMatchService {
-  private db: any; // Your database/realtime client (Supabase, Firebase, etc.)
-  private realtimeChannel: any;
+  private db: DatabaseClient;
+  private realtimeChannel: unknown;
   private webrtcPeer: WebRTCPeer | null = null;
 
-  constructor(dbClient: any) {
+  constructor(dbClient: DatabaseClient) {
     this.db = dbClient;
   }
 
@@ -353,7 +332,7 @@ export class OnlineMatchService {
     hostId: string,
     settings: Partial<OnlineMatch>
   ): Promise<OnlineMatch> {
-    const roomCode = this.generateRoomCode();
+    const roomCode = generateCode(6);
 
     const { data, error } = await this.db
       .from('online_matches')
@@ -366,7 +345,7 @@ export class OnlineMatchService {
         match_type: settings.match_type || 'first_to',
         host_stream_enabled: settings.host_stream_enabled || false,
         guest_stream_enabled: settings.guest_stream_enabled || false,
-        spectators_allowed: settings.spectators_allowed || true,
+        spectators_allowed: settings.spectators_allowed ?? true,
         current_player: 'host',
         host_score: settings.starting_score || 501,
         guest_score: settings.starting_score || 501,
@@ -378,7 +357,7 @@ export class OnlineMatchService {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as OnlineMatch;
   }
 
   /**
@@ -402,12 +381,12 @@ export class OnlineMatchService {
         guest_id: guestId,
         status: 'ready'
       })
-      .eq('id', match.id)
+      .eq('id', (match as OnlineMatch).id)
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    return data as OnlineMatch;
   }
 
   /**
@@ -418,7 +397,8 @@ export class OnlineMatchService {
     onUpdate: (match: OnlineMatch) => void,
     onSpectatorJoin?: (spectator: Spectator) => void
   ): void {
-    // Using Supabase realtime as example
+    if (!this.db.channel) return;
+
     this.realtimeChannel = this.db
       .channel(`match:${matchId}`)
       .on('postgres_changes', {
@@ -426,22 +406,22 @@ export class OnlineMatchService {
         schema: 'public',
         table: 'online_matches',
         filter: `id=eq.${matchId}`
-      }, (payload: any) => {
+      }, (payload: { new: OnlineMatch }) => {
         onUpdate(payload.new);
       });
 
     if (onSpectatorJoin) {
-      this.realtimeChannel.on('postgres_changes', {
+      (this.realtimeChannel as { on: Function }).on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'spectators',
         filter: `match_id=eq.${matchId}`
-      }, (payload: any) => {
+      }, (payload: { new: Spectator }) => {
         onSpectatorJoin(payload.new);
       });
     }
 
-    this.realtimeChannel.subscribe();
+    (this.realtimeChannel as { subscribe: Function }).subscribe();
   }
 
   /**
@@ -449,13 +429,13 @@ export class OnlineMatchService {
    */
   unsubscribe(): void {
     if (this.realtimeChannel) {
-      this.realtimeChannel.unsubscribe();
+      (this.realtimeChannel as { unsubscribe: Function }).unsubscribe();
       this.realtimeChannel = null;
     }
   }
 
   /**
-   * Update match state (score, legs, etc.)
+   * Update match state
    */
   async updateMatchState(
     matchId: string,
@@ -483,12 +463,12 @@ export class OnlineMatchService {
 
     if (!match) throw new Error('Match not found');
 
-    const currentScore = player === 'host' ? match.host_score : match.guest_score;
+    const typedMatch = match as OnlineMatch;
+    const currentScore = player === 'host' ? typedMatch.host_score : typedMatch.guest_score;
     const newScore = currentScore - score;
 
     // Handle bust
     if (newScore < 0 || newScore === 1) {
-      // Just switch turns
       await this.updateMatchState(matchId, {
         current_player: player === 'host' ? 'guest' : 'host'
       });
@@ -497,27 +477,43 @@ export class OnlineMatchService {
 
     // Handle checkout
     if (newScore === 0) {
-      const newLegs = player === 'host' 
-        ? match.host_legs + 1 
-        : match.guest_legs + 1;
+      const newLegs = player === 'host'
+        ? typedMatch.host_legs + 1
+        : typedMatch.guest_legs + 1;
 
-      const isMatchWon = newLegs >= match.legs_to_win;
+      const isMatchWon = newLegs >= typedMatch.legs_to_win;
 
-      await this.updateMatchState(matchId, {
-        [`${player}_score`]: match.starting_score,
-        [`${player}_legs`]: newLegs,
-        [player === 'host' ? 'guest_score' : 'host_score']: match.starting_score,
+      const updates: Partial<OnlineMatch> = {
         current_player: player,
         status: isMatchWon ? 'completed' : 'in_progress'
-      });
+      };
+
+      if (player === 'host') {
+        updates.host_score = typedMatch.starting_score;
+        updates.host_legs = newLegs;
+        updates.guest_score = typedMatch.starting_score;
+      } else {
+        updates.guest_score = typedMatch.starting_score;
+        updates.guest_legs = newLegs;
+        updates.host_score = typedMatch.starting_score;
+      }
+
+      await this.updateMatchState(matchId, updates);
       return;
     }
 
     // Normal throw
-    await this.updateMatchState(matchId, {
-      [`${player}_score`]: newScore,
+    const updates: Partial<OnlineMatch> = {
       current_player: player === 'host' ? 'guest' : 'host'
-    });
+    };
+
+    if (player === 'host') {
+      updates.host_score = newScore;
+    } else {
+      updates.guest_score = newScore;
+    }
+
+    await this.updateMatchState(matchId, updates);
   }
 
   /**
@@ -540,7 +536,7 @@ export class OnlineMatchService {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as Spectator;
   }
 
   /**
@@ -554,30 +550,18 @@ export class OnlineMatchService {
       .order('joined_at');
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as Spectator[];
   }
 
   /**
    * Leave spectator mode
    */
-  async leaveSpectator(matchId: string, userdId: string): Promise<void> {
+  async leaveSpectator(matchId: string, userId: string): Promise<void> {
     await this.db
       .from('spectators')
       .delete()
       .eq('match_id', matchId)
-      .eq('user_id', userdId);
-  }
-
-  /**
-   * Generate unique room code (6 characters)
-   */
-  private generateRoomCode(): string {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars
-    let code = '';
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
+      .eq('user_id', userId);
   }
 }
 
@@ -588,7 +572,7 @@ export class SpectatorStreamManager {
   private viewers: number = 0;
 
   /**
-   * Add a stream for spectators to watch
+   * Add a stream for spectators
    */
   addStream(playerId: string, stream: MediaStream): void {
     this.streams.set(playerId, stream);
@@ -639,52 +623,20 @@ export class SpectatorStreamManager {
   getViewerCount(): number {
     return this.viewers;
   }
+
+  /**
+   * Cleanup all streams
+   */
+  cleanup(): void {
+    this.streams.forEach(stream => {
+      stream.getTracks().forEach(track => track.stop());
+    });
+    this.streams.clear();
+    this.viewers = 0;
+  }
 }
 
-// ==================== DATABASE SCHEMA (SQL) ====================
-
-export const ONLINE_FEATURES_SCHEMA = `
--- Online matches table
-CREATE TABLE IF NOT EXISTS online_matches (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  room_code VARCHAR(6) UNIQUE NOT NULL,
-  host_id UUID REFERENCES players(id),
-  guest_id UUID REFERENCES players(id),
-  status VARCHAR(20) DEFAULT 'waiting',
-  
-  starting_score INTEGER DEFAULT 501,
-  legs_to_win INTEGER DEFAULT 3,
-  match_type VARCHAR(10) DEFAULT 'first_to',
-  
-  host_stream_enabled BOOLEAN DEFAULT false,
-  guest_stream_enabled BOOLEAN DEFAULT false,
-  spectators_allowed BOOLEAN DEFAULT true,
-  
-  current_player VARCHAR(10) DEFAULT 'host',
-  host_score INTEGER,
-  guest_score INTEGER,
-  host_legs INTEGER DEFAULT 0,
-  guest_legs INTEGER DEFAULT 0,
-  
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  completed_at TIMESTAMP WITH TIME ZONE
-);
-
--- Spectators table
-CREATE TABLE IF NOT EXISTS spectators (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  match_id UUID REFERENCES online_matches(id) ON DELETE CASCADE,
-  user_id UUID,
-  display_name VARCHAR(100),
-  joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Index for room code lookups
-CREATE INDEX IF NOT EXISTS idx_online_matches_room_code ON online_matches(room_code);
-
--- Index for active matches
-CREATE INDEX IF NOT EXISTS idx_online_matches_status ON online_matches(status);
-`;
+// ==================== DEFAULT EXPORT ====================
 
 export default {
   CameraStreamManager,
@@ -692,6 +644,5 @@ export default {
   OnlineMatchService,
   SpectatorStreamManager,
   DEFAULT_ICE_SERVERS,
-  STREAM_QUALITY_PRESETS,
-  ONLINE_FEATURES_SCHEMA
+  STREAM_QUALITY_PRESETS
 };

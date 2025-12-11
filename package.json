@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
       "import": "./dist/index.mjs",
@@ -13,41 +14,64 @@
     },
     "./scoring": {
       "import": "./dist/scoring/index.mjs",
-      "require": "./dist/scoring/index.js"
+      "require": "./dist/scoring/index.js",
+      "types": "./dist/scoring/index.d.ts"
     },
     "./components": {
       "import": "./dist/components/index.mjs",
-      "require": "./dist/components/index.js"
+      "require": "./dist/components/index.js",
+      "types": "./dist/components/index.d.ts"
     },
     "./styles": {
       "import": "./dist/styles/index.mjs",
-      "require": "./dist/styles/index.js"
+      "require": "./dist/styles/index.js",
+      "types": "./dist/styles/index.d.ts"
     },
     "./online": {
       "import": "./dist/online/index.mjs",
-      "require": "./dist/online/index.js"
+      "require": "./dist/online/index.js",
+      "types": "./dist/online/index.d.ts"
     },
     "./services": {
       "import": "./dist/services/index.mjs",
-      "require": "./dist/services/index.js"
+      "require": "./dist/services/index.js",
+      "types": "./dist/services/index.d.ts"
+    },
+    "./constants": {
+      "import": "./dist/constants/index.mjs",
+      "require": "./dist/constants/index.js",
+      "types": "./dist/constants/index.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types/index.mjs",
+      "require": "./dist/types/index.js",
+      "types": "./dist/types/index.d.ts"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "build": "tsup",
+    "build:watch": "tsup --watch",
+    "dev": "tsup --watch",
     "lint": "eslint src/",
-    "type-check": "tsc --noEmit"
+    "lint:fix": "eslint src/ --fix",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
   },
   "keywords": [
     "darts",
     "scoring",
     "501",
+    "301",
+    "x01",
     "tournament",
     "league",
     "webrtc",
     "online-play",
     "react",
-    "typescript"
+    "typescript",
+    "checkout",
+    "statistics"
   ],
   "author": "Your Name",
   "license": "MIT",
@@ -55,15 +79,29 @@
     "react": ">=17.0.0",
     "react-dom": ">=17.0.0"
   },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "typescript": "^5.3.0",
     "tsup": "^8.0.0",
-    "eslint": "^8.0.0"
+    "eslint": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0"
   },
   "files": [
     "dist",
-    "README.md"
-  ]
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  }
 }
