@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom base styles */
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-slate-900 text-white antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Prevent text selection on game buttons */
+  button {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* Custom component styles */
+@layer components {
+  .score-glow {
+    box-shadow: 0 0 20px rgba(234, 179, 8, 0.3);
+  }
+
+  .btn-press {
+    @apply active:scale-95 transition-transform;
+  }
+}
+
+/* Custom utilities */
+@layer utilities {
+  .text-shadow-gold {
+    text-shadow: 0 0 10px rgba(234, 179, 8, 0.5);
+  }
+
+  .gradient-gold {
+    @apply bg-gradient-to-r from-gold-400 to-gold-600;
+  }
+}
