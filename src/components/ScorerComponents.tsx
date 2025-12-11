@@ -1,9 +1,16 @@
 /**
  * Darts Scorer React Components
- * Reusable UI components extracted from Pinnacle Darts App
+ * Reusable UI components for darts scoring applications
+ *
+ * Performance optimizations:
+ * - React.memo for pure components
+ * - useCallback for event handlers
+ * - Frozen constant objects
+ * - Optimized re-renders
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
+import { CHECKOUT_TABLE } from '../constants';
 
 // ==================== BUTTON COMPONENT ====================
 
@@ -13,7 +20,23 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean;
 }
 
-export const Button: React.FC<ButtonProps> = ({
+const BUTTON_BASE = 'rounded-lg font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2';
+
+const BUTTON_VARIANTS: Readonly<Record<string, string>> = Object.freeze({
+  primary: 'bg-gold-500 hover:bg-gold-400 text-black shadow-lg shadow-gold-500/20',
+  secondary: 'bg-slate-700 hover:bg-slate-600 text-white border border-slate-600',
+  danger: 'bg-red-600 hover:bg-red-500 text-white',
+  ghost: 'bg-transparent hover:bg-slate-800 text-slate-400 hover:text-white',
+  success: 'bg-emerald-600 hover:bg-emerald-500 text-white'
+});
+
+const BUTTON_SIZES: Readonly<Record<string, string>> = Object.freeze({
+  sm: 'px-3 py-1.5 text-sm',
+  md: 'px-4 py-2',
+  lg: 'px-6 py-3 text-lg'
+});
+
+export const Button: React.FC<ButtonProps> = memo(({
   children,
   variant = 'primary',
   size = 'md',
@@ -21,31 +44,19 @@ export const Button: React.FC<ButtonProps> = ({
   className = '',
   ...props
 }) => {
-  const baseStyles = 'rounded-lg font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2';
-
-  const variants: Record<string, string> = {
-    primary: 'bg-gold-500 hover:bg-gold-400 text-black shadow-lg shadow-gold-500/20',
-    secondary: 'bg-slate-700 hover:bg-slate-600 text-white border border-slate-600',
-    danger: 'bg-red-600 hover:bg-red-500 text-white',
-    ghost: 'bg-transparent hover:bg-slate-800 text-slate-400 hover:text-white',
-    success: 'bg-emerald-600 hover:bg-emerald-500 text-white'
-  };
-
-  const sizes: Record<string, string> = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2',
-    lg: 'px-6 py-3 text-lg'
-  };
+  const classes = useMemo(() =>
+    `${BUTTON_BASE} ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${fullWidth ? 'w-full' : ''} ${className}`,
+    [variant, size, fullWidth, className]
+  );
 
   return (
-    <button
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${fullWidth ? 'w-full' : ''} ${className}`}
-      {...props}
-    >
+    <button className={classes} {...props}>
       {children}
     </button>
   );
-};
+});
+
+Button.displayName = 'Button';
 
 // ==================== SCORE DISPLAY COMPONENT ====================
 
@@ -59,7 +70,7 @@ interface ScoreDisplayProps {
   showHistory?: boolean;
 }
 
-export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
+export const ScoreDisplay: React.FC<ScoreDisplayProps> = memo(({
   score,
   playerName,
   legs,
@@ -68,27 +79,31 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
   history = [],
   showHistory = true
 }) => {
+  const containerClass = useMemo(() => `
+    relative p-4 rounded-xl border-2 transition-all duration-300 flex flex-col items-center
+    ${isActive
+      ? 'bg-slate-800 border-gold-500 shadow-[0_0_20px_rgba(234,179,8,0.2)]'
+      : 'bg-slate-800/50 border-slate-700 opacity-80'
+    }
+  `, [isActive]);
+
+  const lastThreeHistory = useMemo(() => history.slice(-3), [history]);
+
   return (
-    <div className={`
-      relative p-4 rounded-xl border-2 transition-all duration-300 flex flex-col items-center
-      ${isActive 
-        ? 'bg-slate-800 border-gold-500 shadow-[0_0_20px_rgba(234,179,8,0.2)]' 
-        : 'bg-slate-800/50 border-slate-700 opacity-80'
-      }
-    `}>
+    <div className={containerClass}>
       <div className="text-sm text-slate-400 font-bold uppercase mb-1 truncate max-w-full">
         {playerName}
       </div>
-      
+
       <div className="text-5xl lg:text-7xl font-black text-white mb-2">
         {score}
       </div>
-      
+
       <div className="flex items-center gap-2 text-[10px] md:text-xs text-slate-500 uppercase font-semibold bg-slate-900/50 px-3 py-1 rounded-full whitespace-nowrap">
         <span className={legs > 0 ? 'text-gold-500' : ''}>
           Legs: <span className="text-white">{legs}</span>
         </span>
-        <span className="w-[1px] h-3 bg-slate-600"></span>
+        <span className="w-[1px] h-3 bg-slate-600" />
         <span>
           Avg: <span className="text-white">{average.toFixed(2)}</span>
         </span>
@@ -96,14 +111,16 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
 
       {showHistory && (
         <div className="mt-2 h-8 w-full border-t border-slate-700 flex items-center justify-center gap-2 text-slate-500 font-mono text-xs overflow-hidden">
-          {history.slice(-3).map((h, i) => (
+          {lastThreeHistory.map((h, i) => (
             <span key={i} className="px-2">{h}</span>
           ))}
         </div>
       )}
     </div>
   );
-};
+});
+
+ScoreDisplay.displayName = 'ScoreDisplay';
 
 // ==================== KEYPAD COMPONENT ====================
 
@@ -116,7 +133,10 @@ interface KeypadProps {
   showQuickScores?: boolean;
 }
 
-export const Keypad: React.FC<KeypadProps> = ({
+const NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+const QUICK_SCORES = [26, 41, 45, 60, 81, 85, 100, 140, 180] as const;
+
+export const Keypad: React.FC<KeypadProps> = memo(({
   onNumberClick,
   onEnter,
   onUndo,
@@ -124,20 +144,19 @@ export const Keypad: React.FC<KeypadProps> = ({
   disabled = false,
   showQuickScores = false
 }) => {
-  const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-  const quickScores = [26, 41, 45, 60, 81, 85, 100, 140, 180];
+  const handleQuickScore = useCallback((score: number) => {
+    onClear();
+    String(score).split('').forEach(d => onNumberClick(parseInt(d)));
+  }, [onClear, onNumberClick]);
 
   return (
     <div className="flex flex-col gap-2">
       {showQuickScores && (
         <div className="grid grid-cols-5 gap-1 mb-2">
-          {quickScores.map(score => (
+          {QUICK_SCORES.map(score => (
             <button
               key={score}
-              onClick={() => {
-                onClear();
-                String(score).split('').forEach(d => onNumberClick(parseInt(d)));
-              }}
+              onClick={() => handleQuickScore(score)}
               disabled={disabled}
               className="bg-slate-700 hover:bg-slate-600 text-white text-sm py-2 rounded transition-colors disabled:opacity-50"
             >
@@ -148,7 +167,7 @@ export const Keypad: React.FC<KeypadProps> = ({
       )}
 
       <div className={`grid grid-cols-3 gap-2 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
-        {numbers.map(num => (
+        {NUMBERS.map(num => (
           <button
             key={num}
             onClick={() => onNumberClick(num)}
@@ -163,6 +182,7 @@ export const Keypad: React.FC<KeypadProps> = ({
           onClick={onUndo}
           disabled={disabled}
           className="bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-lg flex items-center justify-center active:scale-95 shadow-lg"
+          aria-label="Undo"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
@@ -188,7 +208,9 @@ export const Keypad: React.FC<KeypadProps> = ({
       </div>
     </div>
   );
-};
+});
+
+Keypad.displayName = 'Keypad';
 
 // ==================== INPUT DISPLAY COMPONENT ====================
 
@@ -199,7 +221,7 @@ interface InputDisplayProps {
   onClear?: () => void;
 }
 
-export const InputDisplay: React.FC<InputDisplayProps> = ({
+export const InputDisplay: React.FC<InputDisplayProps> = memo(({
   value,
   placeholder = '---',
   label = 'Current Throw',
@@ -210,7 +232,7 @@ export const InputDisplay: React.FC<InputDisplayProps> = ({
       <span className="text-slate-500 absolute left-4 text-xs uppercase font-bold tracking-wider hidden sm:block">
         {label}
       </span>
-      
+
       <span className={`text-4xl font-mono font-bold tracking-widest ${value ? 'text-white' : 'text-slate-600'}`}>
         {value || placeholder}
       </span>
@@ -219,6 +241,7 @@ export const InputDisplay: React.FC<InputDisplayProps> = ({
         <button
           onClick={onClear}
           className="absolute right-4 text-slate-500 hover:text-red-400 transition-colors"
+          aria-label="Clear"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/>
@@ -229,7 +252,9 @@ export const InputDisplay: React.FC<InputDisplayProps> = ({
       )}
     </div>
   );
-};
+});
+
+InputDisplay.displayName = 'InputDisplay';
 
 // ==================== THROW HISTORY COMPONENT ====================
 
@@ -240,31 +265,31 @@ interface ThrowHistoryProps {
   maxItems?: number;
 }
 
-export const ThrowHistory: React.FC<ThrowHistoryProps> = ({
+export const ThrowHistory: React.FC<ThrowHistoryProps> = memo(({
   history,
   playerName,
   align = 'left',
   maxItems = 20
 }) => {
+  const displayHistory = useMemo(() => history.slice(-maxItems), [history, maxItems]);
+
+  const getScoreClass = useCallback((score: number) => {
+    if (score >= 100) return 'bg-gold-500/20 text-gold-400';
+    if (score >= 60) return 'bg-emerald-500/20 text-emerald-400';
+    return 'bg-slate-700/50 text-slate-400';
+  }, []);
+
   return (
     <div className={`flex flex-col ${align === 'right' ? 'items-end' : 'items-start'}`}>
       <h3 className={`text-slate-500 font-bold mb-4 ${align === 'right' ? 'text-right' : ''}`}>
         {playerName} Throws
       </h3>
-      
+
       <div className={`flex flex-col gap-1 ${align === 'right' ? 'items-end' : 'items-start'}`}>
-        {history.slice(-maxItems).map((score, index) => (
+        {displayHistory.map((score, index) => (
           <div
             key={index}
-            className={`
-              px-3 py-1 rounded text-sm font-mono
-              ${score >= 100 
-                ? 'bg-gold-500/20 text-gold-400' 
-                : score >= 60 
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : 'bg-slate-700/50 text-slate-400'
-              }
-            `}
+            className={`px-3 py-1 rounded text-sm font-mono ${getScoreClass(score)}`}
           >
             {score}
           </div>
@@ -272,7 +297,9 @@ export const ThrowHistory: React.FC<ThrowHistoryProps> = ({
       </div>
     </div>
   );
-};
+});
+
+ThrowHistory.displayName = 'ThrowHistory';
 
 // ==================== MATCH STATS COMPONENT ====================
 
@@ -291,7 +318,7 @@ interface MatchStatsProps {
   compact?: boolean;
 }
 
-export const MatchStats: React.FC<MatchStatsProps> = ({ stats, compact = false }) => {
+export const MatchStats: React.FC<MatchStatsProps> = memo(({ stats, compact = false }) => {
   if (compact) {
     return (
       <div className="flex flex-wrap gap-2 text-xs">
@@ -328,7 +355,11 @@ export const MatchStats: React.FC<MatchStatsProps> = ({ stats, compact = false }
       )}
     </div>
   );
-};
+});
+
+MatchStats.displayName = 'MatchStats';
+
+// ==================== STAT CARD COMPONENT ====================
 
 interface StatCardProps {
   label: string;
@@ -338,22 +369,36 @@ interface StatCardProps {
   special?: boolean;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ label, value, suffix = '', highlight = false, special = false }) => (
-  <div className={`
-    p-3 rounded-lg border
-    ${special 
-      ? 'bg-gold-500/10 border-gold-500/30' 
-      : highlight 
-        ? 'bg-emerald-500/10 border-emerald-500/30'
-        : 'bg-slate-800/50 border-slate-700'
-    }
-  `}>
-    <div className="text-xs text-slate-400 uppercase mb-1">{label}</div>
-    <div className={`text-xl font-bold ${special ? 'text-gold-400' : highlight ? 'text-emerald-400' : 'text-white'}`}>
-      {value}{suffix}
+const StatCard: React.FC<StatCardProps> = memo(({
+  label,
+  value,
+  suffix = '',
+  highlight = false,
+  special = false
+}) => {
+  const containerClass = useMemo(() => {
+    if (special) return 'bg-gold-500/10 border-gold-500/30';
+    if (highlight) return 'bg-emerald-500/10 border-emerald-500/30';
+    return 'bg-slate-800/50 border-slate-700';
+  }, [special, highlight]);
+
+  const valueClass = useMemo(() => {
+    if (special) return 'text-gold-400';
+    if (highlight) return 'text-emerald-400';
+    return 'text-white';
+  }, [special, highlight]);
+
+  return (
+    <div className={`p-3 rounded-lg border ${containerClass}`}>
+      <div className="text-xs text-slate-400 uppercase mb-1">{label}</div>
+      <div className={`text-xl font-bold ${valueClass}`}>
+        {value}{suffix}
+      </div>
     </div>
-  </div>
-);
+  );
+});
+
+StatCard.displayName = 'StatCard';
 
 // ==================== MODAL COMPONENT ====================
 
@@ -365,7 +410,13 @@ interface ModalProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-export const Modal: React.FC<ModalProps> = ({
+const MODAL_SIZES: Readonly<Record<string, string>> = Object.freeze({
+  sm: 'max-w-sm',
+  md: 'max-w-md',
+  lg: 'max-w-2xl'
+});
+
+export const Modal: React.FC<ModalProps> = memo(({
   isOpen,
   onClose,
   title,
@@ -374,26 +425,25 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const sizes: Record<string, string> = {
-    sm: 'max-w-sm',
-    md: 'max-w-md',
-    lg: 'max-w-2xl'
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div 
+      <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
         onClick={onClose}
+        role="button"
+        tabIndex={0}
+        aria-label="Close modal"
+        onKeyDown={(e) => e.key === 'Escape' && onClose()}
       />
-      
-      <div className={`relative bg-slate-800 rounded-xl border border-slate-700 p-6 w-full ${sizes[size]} shadow-2xl`}>
+
+      <div className={`relative bg-slate-800 rounded-xl border border-slate-700 p-6 w-full ${MODAL_SIZES[size]} shadow-2xl`}>
         {title && (
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-white">{title}</h2>
             <button
               onClick={onClose}
               className="text-slate-400 hover:text-white transition-colors"
+              aria-label="Close"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"/>
@@ -406,7 +456,9 @@ export const Modal: React.FC<ModalProps> = ({
       </div>
     </div>
   );
-};
+});
+
+Modal.displayName = 'Modal';
 
 // ==================== SCORE CARD INPUT COMPONENT ====================
 
@@ -419,7 +471,33 @@ interface ScoreCardInputProps {
   highlight?: boolean;
 }
 
-export const ScoreCardInput: React.FC<ScoreCardInputProps> = ({
+const SCORE_OPTIONS = [
+  { label: 'M', value: 0, color: 'miss' },
+  { label: 'S', value: 1, color: 'single' },
+  { label: 'D', value: 2, color: 'double' },
+  { label: 'T', value: 3, color: 'treble' }
+] as const;
+
+const COLOR_STYLES: Readonly<Record<string, { active: string; inactive: string }>> = Object.freeze({
+  miss: {
+    active: 'bg-slate-600 text-white border-slate-400',
+    inactive: 'bg-slate-800/50 text-slate-500 border-transparent hover:bg-slate-700'
+  },
+  single: {
+    active: 'bg-blue-600 text-white border-blue-400',
+    inactive: 'bg-slate-800/50 text-blue-500 border-transparent hover:bg-slate-700'
+  },
+  double: {
+    active: 'bg-emerald-600 text-white border-emerald-400',
+    inactive: 'bg-slate-800/50 text-emerald-500 border-transparent hover:bg-slate-700'
+  },
+  treble: {
+    active: 'bg-red-600 text-white border-red-400',
+    inactive: 'bg-slate-800/50 text-red-500 border-transparent hover:bg-slate-700'
+  }
+});
+
+export const ScoreCardInput: React.FC<ScoreCardInputProps> = memo(({
   label,
   subLabel,
   value,
@@ -427,31 +505,10 @@ export const ScoreCardInput: React.FC<ScoreCardInputProps> = ({
   disableTreble = false,
   highlight = false
 }) => {
-  const options = [
-    { label: 'M', value: 0, color: 'miss' },
-    { label: 'S', value: 1, color: 'single' },
-    { label: 'D', value: 2, color: 'double' },
-    ...(!disableTreble ? [{ label: 'T', value: 3, color: 'treble' }] : [])
-  ];
-
-  const colorStyles: Record<string, { active: string; inactive: string }> = {
-    miss: {
-      active: 'bg-slate-600 text-white border-slate-400',
-      inactive: 'bg-slate-800/50 text-slate-500 border-transparent hover:bg-slate-700'
-    },
-    single: {
-      active: 'bg-blue-600 text-white border-blue-400',
-      inactive: 'bg-slate-800/50 text-blue-500 border-transparent hover:bg-slate-700'
-    },
-    double: {
-      active: 'bg-emerald-600 text-white border-emerald-400',
-      inactive: 'bg-slate-800/50 text-emerald-500 border-transparent hover:bg-slate-700'
-    },
-    treble: {
-      active: 'bg-red-600 text-white border-red-400',
-      inactive: 'bg-slate-800/50 text-red-500 border-transparent hover:bg-slate-700'
-    }
-  };
+  const options = useMemo(() =>
+    disableTreble ? SCORE_OPTIONS.slice(0, 3) : SCORE_OPTIONS,
+    [disableTreble]
+  );
 
   return (
     <div className={`p-3 rounded-lg border flex flex-col items-center gap-2 transition-colors ${
@@ -477,9 +534,9 @@ export const ScoreCardInput: React.FC<ScoreCardInputProps> = ({
             onClick={() => onChange(opt.value)}
             className={`
               flex-1 h-8 rounded flex items-center justify-center font-bold text-xs transition-all duration-150 border
-              ${value === opt.value 
-                ? colorStyles[opt.color].active 
-                : colorStyles[opt.color].inactive
+              ${value === opt.value
+                ? COLOR_STYLES[opt.color].active
+                : COLOR_STYLES[opt.color].inactive
               }
             `}
           >
@@ -489,7 +546,9 @@ export const ScoreCardInput: React.FC<ScoreCardInputProps> = ({
       </div>
     </div>
   );
-};
+});
+
+ScoreCardInput.displayName = 'ScoreCardInput';
 
 // ==================== CHECKOUT SUGGESTION COMPONENT ====================
 
@@ -497,37 +556,7 @@ interface CheckoutSuggestionProps {
   remaining: number;
 }
 
-const CHECKOUT_TABLE: Record<number, string> = {
-  170: 'T20 T20 Bull',
-  167: 'T20 T19 Bull',
-  164: 'T20 T18 Bull',
-  161: 'T20 T17 Bull',
-  160: 'T20 T20 D20',
-  158: 'T20 T20 D19',
-  157: 'T20 T19 D20',
-  156: 'T20 T20 D18',
-  155: 'T20 T19 D19',
-  154: 'T20 T18 D20',
-  153: 'T20 T19 D18',
-  152: 'T20 T20 D16',
-  151: 'T20 T17 D20',
-  150: 'T20 T18 D18',
-  // ... add more as needed
-  100: 'T20 D20',
-  80: 'T20 D10',
-  60: 'S20 D20',
-  50: 'S10 D20',
-  40: 'D20',
-  36: 'D18',
-  32: 'D16',
-  20: 'D10',
-  16: 'D8',
-  8: 'D4',
-  4: 'D2',
-  2: 'D1'
-};
-
-export const CheckoutSuggestion: React.FC<CheckoutSuggestionProps> = ({ remaining }) => {
+export const CheckoutSuggestion: React.FC<CheckoutSuggestionProps> = memo(({ remaining }) => {
   const suggestion = CHECKOUT_TABLE[remaining];
 
   if (!suggestion || remaining > 170) return null;
@@ -538,9 +567,11 @@ export const CheckoutSuggestion: React.FC<CheckoutSuggestionProps> = ({ remainin
       <div className="text-lg font-bold text-emerald-300">{suggestion}</div>
     </div>
   );
-};
+});
 
-// ==================== EXPORTS ====================
+CheckoutSuggestion.displayName = 'CheckoutSuggestion';
+
+// ==================== DEFAULT EXPORT ====================
 
 export default {
   Button,
