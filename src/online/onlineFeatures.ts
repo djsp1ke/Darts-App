@@ -406,22 +406,25 @@ export class OnlineMatchService {
         schema: 'public',
         table: 'online_matches',
         filter: `id=eq.${matchId}`
-      }, (payload: { new: OnlineMatch }) => {
-        onUpdate(payload.new);
+      }, (payload: unknown) => {
+        const typedPayload = payload as { new: OnlineMatch };
+        onUpdate(typedPayload.new);
       });
 
     if (onSpectatorJoin) {
-      (this.realtimeChannel as { on: Function }).on('postgres_changes', {
+      const channel = this.realtimeChannel as { on: (event: string, config: unknown, callback: (payload: unknown) => void) => unknown };
+      channel.on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'spectators',
         filter: `match_id=eq.${matchId}`
-      }, (payload: { new: Spectator }) => {
-        onSpectatorJoin(payload.new);
+      }, (payload: unknown) => {
+        const typedPayload = payload as { new: Spectator };
+        onSpectatorJoin(typedPayload.new);
       });
     }
 
-    (this.realtimeChannel as { subscribe: Function }).subscribe();
+    (this.realtimeChannel as { subscribe: () => void }).subscribe();
   }
 
   /**
@@ -543,12 +546,13 @@ export class OnlineMatchService {
    * Get spectators for a match
    */
   async getSpectators(matchId: string): Promise<Spectator[]> {
-    const { data, error } = await this.db
+    const result = await this.db
       .from('spectators')
       .select('*')
       .eq('match_id', matchId)
       .order('joined_at');
 
+    const { data, error } = result as { data: unknown; error: Error | null };
     if (error) throw error;
     return (data || []) as Spectator[];
   }

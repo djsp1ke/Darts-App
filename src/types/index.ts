@@ -78,13 +78,22 @@ export interface BaseMatch {
 // ==================== DATABASE CLIENT TYPE ====================
 
 /**
+ * Database query result type
+ */
+export interface DatabaseResult<T = unknown> {
+  data: T | null;
+  error: Error | null;
+  count?: number;
+}
+
+/**
  * Generic database client interface
  * Compatible with Supabase, but can be adapted for other databases
  */
 export interface DatabaseClient {
   from(table: string): DatabaseQueryBuilder;
   channel?(name: string): RealtimeChannel;
-  rpc?(fn: string, params?: Record<string, unknown>): Promise<{ data: unknown; error: Error | null }>;
+  rpc?(fn: string, params?: Record<string, unknown>): Promise<DatabaseResult>;
 }
 
 export interface DatabaseQueryBuilder {
@@ -103,7 +112,11 @@ export interface DatabaseQueryBuilder {
   order(column: string, options?: { ascending?: boolean }): DatabaseQueryBuilder;
   limit(count: number): DatabaseQueryBuilder;
   range(from: number, to: number): DatabaseQueryBuilder;
-  single(): Promise<{ data: unknown; error: Error | null; count?: number }>;
+  single(): Promise<DatabaseResult>;
+  then<TResult1 = DatabaseResult, TResult2 = never>(
+    onfulfilled?: ((value: DatabaseResult) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+  ): Promise<TResult1 | TResult2>;
 }
 
 export interface RealtimeChannel {
