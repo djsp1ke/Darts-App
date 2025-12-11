@@ -328,7 +328,7 @@ export class SMSService {
       .eq('id', playerId);
   }
 
-  private async checkVerificationCode(playerId: string, code: string): Promise<boolean> {
+  private async checkVerificationCode(_playerId: string, _code: string): Promise<boolean> {
     // Implement your verification logic
     return true;
   }
