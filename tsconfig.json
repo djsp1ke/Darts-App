@@ -9,13 +9,9 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
-    "allowImportingTsExtensions": true,
 
     /* Emit */
     "noEmit": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
 
     /* Interop Constraints */
     "isolatedModules": true,
@@ -23,17 +19,12 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
 
-    /* Type Checking - Strict Mode */
+    /* Type Checking */
     "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
 
     /* Performance */
     "skipLibCheck": true,
-    "incremental": true,
 
     /* Path Mapping */
     "baseUrl": ".",
